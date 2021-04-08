@@ -134,9 +134,13 @@ fileprivate class JavaObjectContainer<K : CodingKey> : KeyedDecodingContainerPro
             return try decodeJava(type, forKey: key) ?? false
         }
     }
-    
+	
     // override all decodeIfPresent to prevent calling  decodeNil(forKey:)
     public func decodeIfPresent(_ type: Int.Type, forKey key: K) throws -> Int? {
+        return try self.decodeJava(type, forKey: key)
+    }
+    
+    public func decodeIfPresent(_ type: Double.Type, forKey key: K) throws -> Double? {
         return try self.decodeJava(type, forKey: key)
     }
     
@@ -220,7 +224,7 @@ fileprivate class JavaObjectContainer<K : CodingKey> : KeyedDecodingContainerPro
             else {
                 classname = self.decoder.getJavaClassname(forType: type)
             }
-
+					
             let fieldID = try JNI.getJavaField(forClass: javaClass, field: key.stringValue, sig: "L\(classname);")
             guard let object = JNI.api.GetObjectField(JNI.env, javaObject, fieldID) else {
                 return nil
