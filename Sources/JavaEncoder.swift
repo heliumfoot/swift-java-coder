@@ -16,30 +16,30 @@ public enum MissingFieldsStrategy: Error {
 }
 
 internal struct JavaKey : CodingKey {
-
+    
     public var stringValue: String
     public var intValue: Int?
-
+    
     public init(stringValue: String) {
         self.stringValue = stringValue
         self.intValue = nil
     }
-
+    
     public init(intValue: Int) {
         self.stringValue = "\(intValue)"
         self.intValue = intValue
     }
-
+    
     public init(stringValue: String, intValue: Int?) {
         self.stringValue = stringValue
         self.intValue = intValue
     }
-
+    
     init(index: Int) {
         self.stringValue = "Index \(index)"
         self.intValue = index
     }
-
+    
     static let `super` = JavaKey(stringValue: "super")
 }
 
@@ -66,9 +66,9 @@ indirect enum JNIStorageType {
 class JNIStorageObject {
     let type: JNIStorageType
     let codingPath: [CodingKey]
-
+    
     private var _javaObject: jobject!
-
+    
     var javaObject: jobject! {
         get {
             return JNI.api.NewLocalRef(JNI.env, _javaObject)
@@ -80,7 +80,7 @@ class JNIStorageObject {
             _javaObject = newValue
         }
     }
-
+    
     var hasJavaObject: Bool {
         return _javaObject != nil
     }
@@ -105,7 +105,7 @@ class JNIStorageObject {
 
 /// `JavaEncoder` facilitates the encoding of `Encodable` values into JSON.
 open class JavaEncoder: Encoder {
-
+    
     // MARK: Properties
     
     /// The path to the current point in encoding.
@@ -124,11 +124,16 @@ open class JavaEncoder: Encoder {
     /// Initializes `self` with default strategies.
     public init(forPackage: String,
                 missingFieldsStrategy: MissingFieldsStrategy = .throw,
-                codingPath: [CodingKey] = []) {
+                codingPath: [CodingKey] = [],
+                file: StaticString = #fileID,
+                line: UInt = #line) {
         self.codingPath = codingPath
         self.package = forPackage
         self.javaObjects = [JNIStorageObject]()
         self.missingFieldsStrategy = missingFieldsStrategy
+        #if DEBUG
+        NSLog("[\(Self.self)] package = \(package), file = \(file):\(line)")
+        #endif
     }
     
     // MARK: - Encoding Values
@@ -149,7 +154,7 @@ open class JavaEncoder: Encoder {
             self.javaObjects.removeAll()
             throw error
         }
-
+        
     }
     
     // MARK: - Encoder Methods
@@ -223,7 +228,7 @@ fileprivate class JavaObjectContainer<K : CodingKey> : KeyedEncodingContainerPro
         self.javaClass = javaClass
         self.jniStorage = jniStorage
     }
-
+    
     // MARK: Encode JNI primitive fields
     func encodeBoolean(_ value: jboolean, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "Z")
@@ -231,42 +236,42 @@ fileprivate class JavaObjectContainer<K : CodingKey> : KeyedEncodingContainerPro
         JNI.api.SetBooleanField(JNI.env, javaObject, fieldID, value)
         JNI.DeleteLocalRef(javaObject)
     }
-
+    
     func encodeByte(_ value: jbyte, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "B")
         let javaObject = jniStorage.javaObject
         JNI.api.SetByteField(JNI.env, javaObject, fieldID, value)
         JNI.DeleteLocalRef(javaObject)
     }
-
+    
     func encodeShort(_ value: jshort, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "S")
         let javaObject = jniStorage.javaObject
         JNI.api.SetShortField(JNI.env, javaObject, fieldID, value)
         JNI.DeleteLocalRef(javaObject)
     }
-
+    
     func encodeInteger(_ value: jint, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "I")
         let javaObject = jniStorage.javaObject
         JNI.api.SetIntField(JNI.env, javaObject, fieldID, value)
         JNI.DeleteLocalRef(javaObject)
     }
-
+    
     func encodeLong(_ value: jlong, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "J")
         let javaObject = jniStorage.javaObject
         JNI.api.SetLongField(JNI.env, javaObject, fieldID, value)
         JNI.DeleteLocalRef(javaObject)
     }
-
+    
     func encodeFloat(_ value: jfloat, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "F")
         let javaObject = jniStorage.javaObject
         JNI.api.SetFloatField(JNI.env, javaObject, fieldID, value)
         JNI.DeleteLocalRef(javaObject)
     }
-
+    
     func encodeDouble(_ value: jdouble, key: String) throws {
         let fieldID = try JNI.getJavaField(forClass: javaClass, field: key, sig: "D")
         let javaObject = jniStorage.javaObject
@@ -278,147 +283,147 @@ fileprivate class JavaObjectContainer<K : CodingKey> : KeyedEncodingContainerPro
     public func encodeNil(forKey key: Key) throws {
         throw EncodingError.invalidValue(NSNotFound, EncodingError.Context(codingPath: codingPath, debugDescription: "Nil not supported"))
     }
-
+    
     func encode(_ value: Bool, forKey key: K) throws {
         try encodeBoolean(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: Double, forKey key: K) throws {
         try encodeDouble(jdouble(value), key: key.stringValue)
     }
-
+    
     func encode(_ value: Float, forKey key: K) throws {
         try encodeFloat(jfloat(value), key: key.stringValue)
     }
-
+    
     func encode(_ value: Int, forKey key: K) throws {
         try encodeInteger(try value.javaPrimitive(codingPath: codingPath + [key]), key: key.stringValue)
     }
-
+    
     func encode(_ value: Int8, forKey key: K) throws {
         try encodeByte(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: Int16, forKey key: K) throws {
         try encodeShort(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: Int32, forKey key: K) throws {
         try encodeInteger(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: Int64, forKey key: K) throws {
         try encodeLong(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: UInt, forKey key: K) throws {
         try encodeInteger(try value.javaPrimitive(codingPath: codingPath + [key]), key: key.stringValue)
     }
-
+    
     func encode(_ value: UInt8, forKey key: K) throws {
         try encodeByte(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: UInt16, forKey key: K) throws {
         try encodeShort(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: UInt32, forKey key: K) throws {
         try encodeInteger(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encode(_ value: UInt64, forKey key: K) throws {
         try encodeLong(try value.javaPrimitive(), key: key.stringValue)
     }
-
+    
     func encodeIfPresent(_ value: Bool?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: String?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Double?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Float?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Int?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Int8?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Int16?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Int32?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: Int64?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: UInt?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: UInt8?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: UInt16?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: UInt32?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     func encodeIfPresent(_ value: UInt64?, forKey key: K) throws {
         if let value = value {
             try encodeObject(value, forKey: key)
         }
     }
-
+    
     public func encode<T : Encodable>(_ value: T, forKey key: Key) throws {
         try self.encodeObject(value, forKey: key)
     }
-
+    
     private func encodeObject<T : Encodable>(_ value: T, forKey key: Key) throws {
         do {
             let object = try self.encoder.box(value, codingPath: codingPath + [key])
@@ -652,47 +657,47 @@ class JavaEnumValueEncodingContainer: SingleValueEncodingContainer {
     public func encodeNil() throws {
         throw EncodingError.invalidValue(NSNotFound, EncodingError.Context(codingPath: codingPath, debugDescription: "Nil not supported"))
     }
-
+    
     public func encode(_ value: Int8) throws {
         try encode(jvalue(b: value.javaPrimitive()), sig: "B")
     }
-
+    
     public func encode(_ value: Int16) throws {
         try encode(jvalue(s: value.javaPrimitive()), sig: "S")
     }
-
+    
     public func encode(_ value: Int32) throws {
         try encode(jvalue(i: value.javaPrimitive()), sig: "I")
     }
-
+    
     public func encode(_ value: Int64) throws {
         try encode(jvalue(j: value.javaPrimitive()), sig: "J")
     }
-
+    
     public func encode(_ value: Int) throws {
         try encode(jvalue(i: value.javaPrimitive(codingPath: codingPath)), sig: "I")
     }
-
+    
     public func encode(_ value: UInt8) throws {
         try encode(jvalue(b: value.javaPrimitive()), sig: "B")
     }
-
+    
     public func encode(_ value: UInt16) throws {
         try encode(jvalue(s: value.javaPrimitive()), sig: "S")
     }
-
+    
     public func encode(_ value: UInt32) throws {
         try encode(jvalue(i: value.javaPrimitive()), sig: "I")
     }
-
+    
     public func encode(_ value: UInt64) throws {
         try encode(jvalue(j: value.javaPrimitive()), sig: "J")
     }
-
+    
     public func encode(_ value: UInt) throws {
         try encode(jvalue(i: value.javaPrimitive(codingPath: codingPath)), sig: "I")
     }
-
+    
     public func encode(_ value: jvalue, sig: String) throws {
         let clazz = try JNI.getJavaClass(javaClass)
         // If jniStorage.javaObject == nil its enum, else optionSet
@@ -706,12 +711,12 @@ class JavaEnumValueEncodingContainer: SingleValueEncodingContainer {
             let valueOfMethodID = try JNI.getStaticJavaMethod(forClass: javaClass, method: "valueOf", sig: "(\(sig))L\(javaClass);")
             guard let javaObject = JNI.CallStaticObjectMethod(clazz, methodID: valueOfMethodID, args: [value]) else {
                 throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: codingPath,
-                        debugDescription: "Nil not supported: \\(javaClass).valueOf()"))
+                                                                              debugDescription: "Nil not supported: \\(javaClass).valueOf()"))
             }
             jniStorage.javaObject = javaObject
         }
     }
-
+    
     private let setterFuncMap: [String: (jobject, jfieldID, jvalue) -> Void] = [
         "B": { _ = JNI.api.SetByteField(JNI.env, $0, $1, $2.b) },
         "S": { _ = JNI.api.SetShortField(JNI.env, $0, $1, $2.s) },
@@ -743,17 +748,17 @@ class JavaEnumValueEncodingContainer: SingleValueEncodingContainer {
 
 // MARK: - AnyCodable Containers
 fileprivate class JavaAnyCodableContainer<K : CodingKey> : KeyedEncodingContainerProtocol {
-
+    
     typealias Key = K
-
+    
     // MARK: Properties
     /// A reference to the encoder we're writing to.
     private let encoder: JavaEncoder
     private let jniStorage: JNIStorageObject
-
+    
     /// The path of coding keys taken to get to this point in encoding.
     private(set) public var codingPath: [CodingKey]
-
+    
     // MARK: - Initialization
     /// Initializes `self` with the given references.
     fileprivate init(referencing encoder: JavaEncoder, codingPath: [CodingKey], jniStorage: JNIStorageObject) {
@@ -761,12 +766,12 @@ fileprivate class JavaAnyCodableContainer<K : CodingKey> : KeyedEncodingContaine
         self.codingPath = codingPath
         self.jniStorage = jniStorage
     }
-
+    
     // MARK: - KeyedEncodingContainerProtocol Methods
     public func encodeNil(forKey key: Key) throws {
         throw EncodingError.invalidValue(NSNotFound, EncodingError.Context(codingPath: codingPath, debugDescription: "Nil not supported"))
     }
-
+    
     public func encode<T : Encodable>(_ value: T, forKey key: Key) throws {
         if key.stringValue == "typeName" {
             // ignore typeName
@@ -785,11 +790,11 @@ fileprivate class JavaAnyCodableContainer<K : CodingKey> : KeyedEncodingContaine
             }
         }
     }
-
+    
     public func nestedContainer<NestedKey>(keyedBy keyType: NestedKey.Type, forKey key: Key) -> KeyedEncodingContainer<NestedKey> {
         preconditionFailure("Not implemented: nestedContainer")
     }
-
+    
     public func nestedUnkeyedContainer(forKey key: Key) -> UnkeyedEncodingContainer {
         switch self.jniStorage.type {
         case let .anyCodable(codable):
@@ -805,11 +810,11 @@ fileprivate class JavaAnyCodableContainer<K : CodingKey> : KeyedEncodingContaine
             fatalError("Only single containers")
         }
     }
-
+    
     public func superEncoder() -> Encoder {
         preconditionFailure("Not implemented: superEncoder")
     }
-
+    
     public func superEncoder(forKey key: Key) -> Encoder {
         preconditionFailure("Not implemented: superEncoder")
     }
